@@ -1,0 +1,16 @@
+virt-install \
+  -n {{ item.name }} \
+ --quiet \
+ --description "{{ item.description }}" \
+ --os-type=Linux \
+ --os-variant=centos7.0 \
+ --ram={{ item.ram }} \
+ --vcpus={{ item.cpu }} \
+ --disk path={{ item.img_path }}/{{ item.name }}.img,bus=virtio,size={{ item.disk_size }} \
+ --nographics  \
+ --noautoconsole \
+ --wait=-1 \
+ --location={{ vm.iso }} \
+ --initrd-inject=/root/kickstart-config-{{ item.name }}.ks \
+ --extra-args="ks=file:/kickstart-config-{{ item.name }}.ks console=tty0 console=ttyS0,115200" \
+ --network {{ item.netwoktype | default('network') }}={{ item.network }}

@@ -1,0 +1,53 @@
+# Minimal Kickstart file
+install
+text
+reboot
+lang en_US.UTF-8
+keyboard us
+network --bootproto static --hostname {{ item.name }} --ip {{ item.ip }}  --netmask 255.255.255.0 --gateway {{ item.gateway }} --noipv6
+rootpw manager1
+firewall --disabled --ssh
+selinux --disabled
+timezone --utc America/Sao_Paulo
+firstboot --disable
+bootloader --location=mbr
+zerombr
+clearpart --all --initlabel
+autopart
+
+#Just core packages
+%packages
+@core
+%end
+
+%post
+# adding control-machine ssk_key
+mkdir -m 0700 -p /root/.ssh
+touch /root/.ssh/authorized_keys
+chmod 600 /root/.ssh/authorized_keys
+cat <<ROOT_KEY >>/root/.ssh/authorized_keys
+ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAhasuhdasdoOIAJSDOIHAiusDNHAKSLDJAOIWHDAOUSJDNAIWDJAJDIAOjdhzkY/ucD4IgpdFimljF8jwfxn9bGGCG7CUdbvnKD7qSkskSoAYP0JeILbyO2CCqTPDlhTg4aMqbrgPPLH2r8ZajodYB+s= rsa-key-vgarcia
+ROOT_KEY
+
+# adding ansible user and ssk_key
+useradd -m  -g users -G wheel -c 'Usuario de automatizacao' ansible
+mkdir -m 0700 -p /home/ansible/.ssh
+touch /home/ansible/.ssh/authorized_keys
+chmod 600 /home/ansible/.ssh/authorized_keys
+chown ansible.users /home/ansible -R
+cat <<ANSIBLE_KEY >>/home/ansible/.ssh/authorized_keys
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDDnH+fOOHy01l1deml+gjuU/p6kfAF2Yg6Q7qWzM2iHiJb58aUObjH1l9SGN/zFygVE4MV2ny8sfIBSJi6Lp9vhiAPmndvN9XhhIOrG5ri02DPm5KzG4lzkp4ZbU8N8W/FCZAegegybsMCQ7vhsBv9l+FuMtyP4TqKh8OLHBqsP1amZAsVoi1RFcEOUTxWMr6+3pSc8NYpm0DofTdnPeQZAAslCy6f3XUD17Jn9u50xogrv+ZElx00lCwb9Rrytuy0ZAuyvOsu9Op+2V6QyMsAKEcB/LcOA1KwxEDyoO97iBVx/q0TMM5FwpMv4bajSFVfEHaqpv5pZtgfu5UB9A/N ansible
+ANSIBLE_KEY
+
+
+systemctl reload sshd
+
+sed --in-place 's/^#\s*\(%wheel\s\+ALL=(ALL)\s\+NOPASSWD:\s\+ALL\)/\1/' /etc/sudoers
+sed --in-place 's/^\(%wheel\s\+ALL=(ALL)\s\+ALL\)/#\1/' /etc/sudoers
+
+sed -i "s/^.*requiretty/#Defaults requiretty/" /etc/sudoers
+sed -i "s/^.*!visiblepw/#Defaults !visiblepw/" /etc/sudoers
+
+echo "05" > /proc/sys/vm/swappiness
+
+%end

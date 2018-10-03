@@ -1,0 +1,100 @@
+---
+
+#
+# dependencies
+#
+
+- name: download centos7 iso
+  get_url:
+    url: http://linuxupdate/isos/centos/CentOS-7-x86_64-Minimal-1611.iso
+    dest: /root/CentOS-7-x86_64-Minimal-1611.iso
+
+- name: install dependencies
+  yum: name={{item}} state=installed
+  become: true
+  with_items:
+      - qemu-kvm
+      - qemu-img
+      - virt-manager
+      - libvirt
+      - libvirt-python
+      - libvirt-client
+      - virt-install
+      - virt-viewer
+      - bridge-utils
+      - dejavu-lgc-sans-fonts
+      - sysfsutils
+      - sg3_utils
+      - device-mapper-multipath
+      - net-tools
+
+#
+# ssh control-machine -> guests
+#
+
+#- name: register ansible_ssh_pubkey
+#  local_action: shell cat {{ ansible_pubkey_path }}/{{ ansible_pubkey_file }}
+#  register: ansible_ssh_pubkey
+
+#
+# send libvirt scripts
+#
+
+- name: send kickstart-configs
+  template:
+    src: "{{ playbook_dir }}/roles/kvm/templates/kickstart-config.ks.j2"
+    dest: "/root/kickstart-config-{{ item.name }}.ks"
+  with_items: "{{ guests }}"
+
+- name: creating fragments directory
+  file: path=/root/libvirt/ state=directory
+
+- name: send vm creation scripts
+  template:
+    src: "{{ playbook_dir }}/roles/kvm/templates/virt-install.sh.j2"
+    dest: "/root/libvirt/virt-install-{{ item.name }}.sh"
+  with_items: "{{ guests }}"
+
+- name: generating single libvirt script
+  assemble:
+    src: /root/libvirt/
+    dest: /root/libvirt/virt-install.sh
+    mode: 0755
+    delimiter: '###'
+
+- name: move libvirt script to /root
+  command: mv /root/libvirt/virt-install.sh /root
+
+- name: cleaning fragments
+  file:
+    path: /root/libvirt/
+    state: absent
+
+- name: creating libvirt directory
+  file:
+    path=/libvirt state=directory
+
+- name: creating libvirt image directory
+  file:
+    path=/libvirt/images/
+    state=directory
+
+- name: enable root run virt_install.sh (USER)
+  lineinfile:
+    dest: /etc/libvirt/qemu.conf
+    regexp: '^#user = "root"'
+    line: 'user = "root"'
+
+- name: enable root run virt_install.sh (GROUP)
+  lineinfile:
+    dest: /etc/libvirt/qemu.conf
+    regexp: '^#group = "root"'
+    line: 'group = "root"'
+
+- name: Start libvirtd
+  service: name=libvirtd state=running enabled=yes
+
+- name: Start virt_install.sh
+  command: /usr/bin/sh /root/virt-install.sh
+  become: true
+  become_user: root
